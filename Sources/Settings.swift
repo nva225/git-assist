@@ -45,6 +45,8 @@ final class Settings: ObservableObject {
     @Published var categories: [String: CategoryPrefs] { didSet { store(categories, "categories") } }
     @Published var fadeDelay: Double { didSet { store(fadeDelay, "fadeDelay") } }
     @Published var fadedOpacity: Double { didSet { store(fadedOpacity, "fadedOpacity") } }
+    /// How far the faded deck slides up toward the top of the screen: 0 stays put, 0.9 leaves a sliver.
+    @Published var stackLift: Double { didSet { store(stackLift, "stackLift") } }
     @Published var autoHideDelay: Double { didSet { store(autoHideDelay, "autoHideDelay") } }
     @Published var playSound: Bool { didSet { store(playSound, "playSound") } }
 
@@ -67,6 +69,7 @@ final class Settings: ObservableObject {
         categories = Self.load("categories", [:])
         fadeDelay = Self.load("fadeDelay", 8)
         fadedOpacity = Self.load("fadedOpacity", 0.35)
+        stackLift = Self.load("stackLift", 0)
         autoHideDelay = Self.load("autoHideDelay", 12)
         playSound = Self.load("playSound", false)
         warnDays = Self.load("warnDays", 1)

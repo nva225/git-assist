@@ -209,6 +209,16 @@ private struct PopupsPane: View {
                     Slider(value: $settings.fadedOpacity, in: 0.1...0.9)
                         .frame(width: 180)
                 }
+                LabeledContent("Faded stack position") {
+                    Slider(value: $settings.stackLift, in: 0...0.9) {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Text("In place").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Mostly hidden").font(.caption)
+                    }
+                    .frame(width: 260)
+                }
                 LabeledContent("Auto-hide after") {
                     Stepper("\(Int(settings.autoHideDelay)) seconds", value: $settings.autoHideDelay, in: 3...120, step: 1)
                 }

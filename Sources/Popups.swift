@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 struct PopupCard: Identifiable, Codable {
@@ -68,6 +69,7 @@ final class PopupCenter: ObservableObject {
     private var idleSince = Date()
     private var screen: NSScreen?
     private var timer: Timer?
+    private var cancellables = Set<AnyCancellable>()
 
     static let width: CGFloat = 440
     static let maxPeeks = 3
@@ -82,6 +84,28 @@ final class PopupCenter: ObservableObject {
         let saved = UserDefaults.standard.double(forKey: "snoozedUntil")
         if saved > Date().timeIntervalSince1970 { snoozedUntil = Date(timeIntervalSince1970: saved) }
         restore()
+
+        // Dragging the opacity or position sliders previews the faded deck live. GCD rather than RunLoop,
+        // so updates land while the slider is still being tracked.
+        let settings = Settings.shared
+        settings.$fadedOpacity.dropFirst().map { _ in () }
+            .merge(with: settings.$stackLift.dropFirst().map { _ in () })
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.previewDeck() }
+            .store(in: &cancellables)
+    }
+
+    /// Shows the faded deck as the settings now describe it, with test cards if there's nothing real.
+    private func previewDeck() {
+        guard !isSnoozed else { return }
+        if cards.isEmpty {
+            post(TestPopups.make())
+            DispatchQueue.main.async { [weak self] in self?.previewDeck() }
+            return
+        }
+        idleSince = Date()
+        setCollapsed(true, relayout: false)
+        layout(instant: true)
     }
 
     // MARK: - Snooze
@@ -245,7 +269,7 @@ final class PopupCenter: ObservableObject {
 
     /// Expanded: cards in a column. Collapsed: every card tucked behind the front one, each showing a
     /// sliver of its bottom edge. The front card is in the same place either way.
-    private func layout() {
+    private func layout(instant: Bool = false) {
         if isSnoozed || cards.isEmpty {
             let panels = slots.values.map(\.panel) + [snoozePanel].compactMap { $0 }
             for panel in panels where panel.isVisible {
@@ -264,6 +288,8 @@ final class PopupCenter: ObservableObject {
         let heights = cards.map { card in slots[card.id].map { ceil($0.host.fittingSize.height) } ?? 0 }
         let top = (visible.maxY - 10).rounded()
         let frontBottom = top - heights[0]
+        // The faded deck can slide up past the menu bar, toward (but never entirely off) the screen's top.
+        let lift = collapsed ? (CGFloat(Settings.shared.stackLift) * (screen.frame.maxY - frontBottom)).rounded() : 0
         var nextTop = top
 
         for (i, card) in cards.enumerated() {
@@ -276,14 +302,14 @@ final class PopupCenter: ObservableObject {
                 let depth = CGFloat(min(i, Self.maxPeeks))
                 // Never taller than the front card plus its sliver, so nothing pokes out above the deck.
                 let height = min(full, heights[0] + depth * Self.peek)
-                frame = NSRect(x: x, y: frontBottom - depth * Self.peek, width: Self.width, height: height)
+                frame = NSRect(x: x, y: frontBottom - depth * Self.peek + lift, width: Self.width, height: height)
                 alpha = i > Self.maxPeeks ? 0 : Settings.shared.fadedOpacity
             } else {
                 frame = NSRect(x: x, y: nextTop - full, width: Self.width, height: full)
                 nextTop -= full + Self.gap
                 alpha = 1
             }
-            move(slot.panel, to: frame, alpha: alpha)
+            move(slot.panel, to: frame, alpha: alpha, instant: instant)
         }
         // Back to front, so the newest card sits on top of the deck.
         for card in cards.reversed() { slots[card.id]?.panel.orderFrontRegardless() }
@@ -323,18 +349,18 @@ final class PopupCenter: ObservableObject {
         }
     }
 
-    private func move(_ panel: PopupPanel, to frame: NSRect, alpha: CGFloat) {
+    private func move(_ panel: PopupPanel, to frame: NSRect, alpha: CGFloat, instant: Bool = false) {
         let collapsing = collapsed
         if !panel.isVisible { panel.setFrame(frame.offsetBy(dx: 0, dy: 16), display: false) }
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = collapsing ? 0.4 : 0.25
+            context.duration = instant ? 0.08 : collapsing ? 0.4 : 0.25
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(frame, display: true)
         }, completionHandler: {
             panel.invalidateShadow()
         })
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = collapsing ? 1.0 : 0.15
+            context.duration = instant ? 0.08 : collapsing ? 1.0 : 0.15
             panel.animator().alphaValue = alpha
         }
     }
@@ -388,6 +414,9 @@ final class PopupPanel: NSPanel {
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    /// Allowed above the menu bar and partly off the top of the screen, for the lifted deck.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
 
 /// Lets the very first click on an inactive popup count, instead of only focusing it, and reports hover

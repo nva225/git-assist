@@ -84,7 +84,9 @@ suggestions or results, **Return** opens the selected PR, **Esc** hides suggesti
 One bar per PR, stacked top-center on the screen that has the focused window. New activity on the same
 PR updates its bar instead of adding another. They stay until clicked (opens the PR or comment) or
 dismissed with ×. After 8 seconds untouched, the stack fades translucent and collapses into a deck behind
-the newest card, which stays put (up to three edges peek out below it, plus an "N more" tag). Hovering
+the newest card (up to three edges peek out below it, plus an "N more" tag). Preferences → Popups sets
+its opacity and how far it slides up, from in place to mostly off the top of the screen; dragging either
+slider previews the deck live (with test cards if none are open). Hovering
 fans them back out at full opacity, and so does any new popup. Like unread mail, open popups are saved
 (`popups.json`) and come back after a restart. The **Snooze** pill under the expanded stack (or the menu
 bar's Snooze Popups submenu) hides everything for 15m / 1h / 2h. New activity keeps collecting silently,
